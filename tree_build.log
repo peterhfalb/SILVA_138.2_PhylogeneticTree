@@ -1,0 +1,63 @@
+Loading alignment from SILVA_138.2_SSURef_NR99_tax_silva_trunc.fasta.gz...
+  Loaded 10000 sequences
+  Loaded 20000 sequences
+  Loaded 30000 sequences
+  Loaded 40000 sequences
+  Loaded 50000 sequences
+  Loaded 60000 sequences
+  Loaded 70000 sequences
+  Loaded 80000 sequences
+  Loaded 90000 sequences
+  Loaded 100000 sequences
+  Loaded 110000 sequences
+  Loaded 120000 sequences
+  Loaded 130000 sequences
+  Loaded 140000 sequences
+  Loaded 150000 sequences
+  Loaded 160000 sequences
+  Loaded 170000 sequences
+  Loaded 180000 sequences
+  Loaded 190000 sequences
+  Loaded 200000 sequences
+  Loaded 210000 sequences
+  Loaded 220000 sequences
+  Loaded 230000 sequences
+  Loaded 240000 sequences
+  Loaded 250000 sequences
+  Loaded 260000 sequences
+  Loaded 270000 sequences
+  Loaded 280000 sequences
+  Loaded 290000 sequences
+  Loaded 300000 sequences
+  Loaded 310000 sequences
+  Loaded 320000 sequences
+  Loaded 330000 sequences
+  Loaded 340000 sequences
+  Loaded 350000 sequences
+  Loaded 360000 sequences
+  Loaded 370000 sequences
+  Loaded 380000 sequences
+  Loaded 390000 sequences
+  Loaded 400000 sequences
+  Loaded 410000 sequences
+  Loaded 420000 sequences
+  Loaded 430000 sequences
+  Loaded 440000 sequences
+  Loaded 450000 sequences
+  Loaded 460000 sequences
+  Loaded 470000 sequences
+  Loaded 480000 sequences
+  Loaded 490000 sequences
+  Loaded 500000 sequences
+  Loaded 510000 sequences
+Total sequences loaded: 510495
+
+Analyzing gap patterns...
+Traceback (most recent call last):
+  File "/Users/peterfalb/Documents/Research/Kennedy/Databases/PhylogeneticTrees/SILVA_138/build_silva_tree.py", line 319, in <module>
+    sys.exit(main())
+  File "/Users/peterfalb/Documents/Research/Kennedy/Databases/PhylogeneticTrees/SILVA_138/build_silva_tree.py", line 287, in main
+    keep_mask = mask_gappy_columns(sequences, gap_threshold_pct=args.gap_threshold)
+  File "/Users/peterfalb/Documents/Research/Kennedy/Databases/PhylogeneticTrees/SILVA_138/build_silva_tree.py", line 85, in mask_gappy_columns
+    seq_array = np.array([seq.values for seq in sequences])
+ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (510495,) + inhomogeneous part.
