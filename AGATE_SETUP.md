@@ -12,7 +12,7 @@ This setup allows you to submit a SLURM job that will:
 
 ## Prerequisites
 
-- SSH access to Agate: `agate.msi.umn.edu`
+- SSH access to Agate: `falb0011@agate.msi.umn.edu`
 - A valid allocation on Agate (check with `salloc --help`)
 - The SILVA 138.2 alignment file downloaded or accessible on Agate
 
