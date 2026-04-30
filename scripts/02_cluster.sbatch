@@ -60,7 +60,8 @@ vsearch --cluster_fast "$SILVA_FILE" \
     --threads "$SLURM_CPUS_PER_TASK" \
     --centroids "${RESULTS_DIR}/centroids_97.fasta" \
     --uc "${RESULTS_DIR}/clusters_97.uc" \
-    --fasta_width 0
+    --fasta_width 0 \
+    --notrunclabels
 
 # Count output centroids
 echo ""
@@ -74,9 +75,13 @@ echo "Cluster compression: $CLUSTER_RATIO%"
 # === Filter bacteria only ===
 echo ""
 echo "Filtering to bacteria only (removing archaea and eukaryotes)..."
-grep -A1 "^>.*Bacteria;" "${RESULTS_DIR}/centroids_97.fasta" \
-    | grep -v "^--$" \
-    > "${RESULTS_DIR}/centroids_97_bacteria.fasta"
+module load python3
+source "${SCRIPT_DIR}/venv/bin/activate"
+python3 "${SCRIPT_DIR}/scripts/filter_bacteria.py" \
+    "${RESULTS_DIR}/centroids_97.fasta" \
+    "$SILVA_FILE" \
+    "${RESULTS_DIR}/centroids_97_bacteria.fasta"
+deactivate
 
 BACTERIA_COUNT=$(grep -c "^>" "${RESULTS_DIR}/centroids_97_bacteria.fasta")
 REMOVED=$((CENTROID_COUNT - BACTERIA_COUNT))
