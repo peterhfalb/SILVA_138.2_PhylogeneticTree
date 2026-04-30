@@ -64,7 +64,7 @@ ALIGNED_PFAM="${RESULTS_DIR}/centroids_aligned.pfam"
 CMALIGN_THREADS=16
 cmalign --cpu "$CMALIGN_THREADS" \
     --mxsize 12000 \
-    --maxtau \
+    --maxtau 0.5 \
     --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
