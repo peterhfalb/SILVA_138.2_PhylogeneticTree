@@ -60,7 +60,7 @@ echo "  Input sequences: $CENTROID_COUNT"
 ALIGNED_PFAM="${RESULTS_DIR}/centroids_aligned.pfam"
 
 cmalign --cpu "$SLURM_CPUS_PER_TASK" \
-    --mxsize 8000 \
+    --mxsize 32000  \
     --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
