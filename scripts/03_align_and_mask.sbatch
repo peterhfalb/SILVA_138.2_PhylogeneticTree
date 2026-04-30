@@ -56,11 +56,18 @@ echo "Step 3a: Aligning to RF00177.cm..."
 CENTROID_COUNT=$(grep -c "^>" "$CENTROID_FASTA")
 echo "  Input sequences: $CENTROID_COUNT"
 
+# Use Pfam format (can handle large alignments) then convert to FASTA
+ALIGNED_PFAM="${RESULTS_DIR}/centroids_aligned.pfam"
+
 cmalign --cpu "$SLURM_CPUS_PER_TASK" \
-    --outformat afa \
+    --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
-    > "$ALIGNED_FASTA"
+    > "$ALIGNED_PFAM"
+
+# Convert Pfam format to FASTA using esl-reformat
+esl-reformat fasta "$ALIGNED_PFAM" > "$ALIGNED_FASTA"
+rm "$ALIGNED_PFAM"
 
 ALIGNED_COUNT=$(grep -c "^>" "$ALIGNED_FASTA")
 echo "  Aligned sequences: $ALIGNED_COUNT"
