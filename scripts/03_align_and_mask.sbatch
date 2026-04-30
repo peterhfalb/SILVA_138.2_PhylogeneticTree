@@ -59,8 +59,12 @@ echo "  Input sequences: $CENTROID_COUNT"
 # Use Pfam format (can handle large alignments) then convert to FASTA
 ALIGNED_PFAM="${RESULTS_DIR}/centroids_aligned.pfam"
 
-cmalign --cpu "$SLURM_CPUS_PER_TASK" \
-    --mxsize 32000  \
+# Use 16 threads so each gets ~16 GB of the 256 GB node.
+# --mxsize 12000 per thread, --maxtau for graceful fallback on divergent seqs.
+CMALIGN_THREADS=16
+cmalign --cpu "$CMALIGN_THREADS" \
+    --mxsize 12000 \
+    --maxtau \
     --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
