@@ -34,7 +34,7 @@ PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 
 # === STEP 2: Clustering ===
 echo "Submitting STEP 2: Clustering (VSEARCH 97%)..."
-JOB_2=$(sbatch -p scripts/02_cluster.sbatch | awk '{print $NF}')
+JOB_2=$(sbatch scripts/02_cluster.sbatch | awk '{print $NF}')
 echo "  Job ID: $JOB_2"
 
 # === STEP 3: Alignment & Masking ===
