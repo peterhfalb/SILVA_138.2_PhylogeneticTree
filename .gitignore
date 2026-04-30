@@ -1,0 +1,52 @@
+# Large data files
+SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz
+SILVA_138.2_SSURef_NR99_tax_silva.fasta
+
+# Results
+results/
+results/**/*.fasta
+results/**/*.fasta.gz
+results/**/*.uc
+results/**/*.nwk
+results/**/*.sto
+results/**/*.treefile
+results/**/*.log
+results/**/*.iqtree
+results/**/*.model.gz
+results/**/*.partition.txt
+results/**/*.splits.nex
+results/**/*.svg
+results/**/*.pdf
+results/**/*.tsv
+
+# Logs
+logs/
+logs/**/*.out
+logs/**/*.err
+logs/**/pipeline.log
+
+# Python & virtual environments
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.old

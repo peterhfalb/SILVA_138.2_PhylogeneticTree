@@ -1,2 +1,3 @@
 scikit-bio>=0.5.7
 numpy>=1.19.0
+treemmer>=0.3
