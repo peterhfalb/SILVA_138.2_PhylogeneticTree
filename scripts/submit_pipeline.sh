@@ -34,28 +34,44 @@ PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 
 # === STEP 2: Clustering ===
 echo "Submitting STEP 2: Clustering (VSEARCH 97%)..."
-JOB_2=$(sbatch scripts/02_cluster.sbatch | awk '{print $NF}')
+JOB_2=$(sbatch scripts/02_cluster.sbatch 2>&1 | grep -oP 'Submitted batch job \K[0-9]+')
+if [ -z "$JOB_2" ]; then
+    echo "ERROR: Failed to submit job 2"
+    exit 1
+fi
 echo "  Job ID: $JOB_2"
 
 # === STEP 3: Alignment & Masking ===
 echo ""
 echo "Submitting STEP 3: Alignment & Masking (cmalign)..."
 echo "  Dependency: afterok:$JOB_2"
-JOB_3=$(sbatch --dependency=afterok:$JOB_2 scripts/03_align_and_mask.sbatch | awk '{print $NF}')
+JOB_3=$(sbatch --dependency=afterok:$JOB_2 scripts/03_align_and_mask.sbatch 2>&1 | grep -oP 'Submitted batch job \K[0-9]+')
+if [ -z "$JOB_3" ]; then
+    echo "ERROR: Failed to submit job 3 (check job 2 succeeded)"
+    exit 1
+fi
 echo "  Job ID: $JOB_3"
 
 # === STEP 4: Tree Building ===
 echo ""
 echo "Submitting STEP 4: Tree Building (IQ-TREE)..."
 echo "  Dependency: afterok:$JOB_3"
-JOB_4=$(sbatch --dependency=afterok:$JOB_3 scripts/04_build_tree.sbatch | awk '{print $NF}')
+JOB_4=$(sbatch --dependency=afterok:$JOB_3 scripts/04_build_tree.sbatch 2>&1 | grep -oP 'Submitted batch job \K[0-9]+')
+if [ -z "$JOB_4" ]; then
+    echo "ERROR: Failed to submit job 4 (check job 3 succeeded)"
+    exit 1
+fi
 echo "  Job ID: $JOB_4"
 
 # === STEP 5: Pruning ===
 echo ""
 echo "Submitting STEP 5: Pruning to 10K tips (Treemmer)..."
 echo "  Dependency: afterok:$JOB_4"
-JOB_5=$(sbatch --dependency=afterok:$JOB_4 scripts/05_prune_tree.sbatch | awk '{print $NF}')
+JOB_5=$(sbatch --dependency=afterok:$JOB_4 scripts/05_prune_tree.sbatch 2>&1 | grep -oP 'Submitted batch job \K[0-9]+')
+if [ -z "$JOB_5" ]; then
+    echo "ERROR: Failed to submit job 5 (check job 4 succeeded)"
+    exit 1
+fi
 echo "  Job ID: $JOB_5"
 
 # === Summary ===
