@@ -36,7 +36,7 @@ echo ""
 
 # Load modules
 module purge
-module load infernal
+module load infernal/1.1.4
 module load python3
 
 # Check input
