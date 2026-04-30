@@ -62,13 +62,21 @@ ALIGNED_PFAM="${RESULTS_DIR}/centroids_aligned.pfam"
 # Use 16 threads so each gets ~16 GB of the 256 GB node.
 # --mxsize 12000 per thread, --maxtau for graceful fallback on divergent seqs.
 CMALIGN_THREADS=16
+CMALIGN_LOG="${LOGS_DIR}/cmalign.log"
+echo "cmalign log: $CMALIGN_LOG"
+
 cmalign --cpu "$CMALIGN_THREADS" \
     --mxsize 12000 \
-    --maxtau 0.5 \
+    --maxtau 0.2 \
     --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
-    > "$ALIGNED_PFAM"
+    > "$ALIGNED_PFAM" \
+    2> "$CMALIGN_LOG"
+
+echo "cmalign exit code: $?"
+echo "cmalign log tail:"
+tail -20 "$CMALIGN_LOG"
 
 # Convert Pfam format to FASTA using esl-reformat
 esl-reformat fasta "$ALIGNED_PFAM" > "$ALIGNED_FASTA"
