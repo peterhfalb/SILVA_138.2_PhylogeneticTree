@@ -17,14 +17,23 @@ import skbio
 
 
 def load_alignment(filepath):
-    """Load aligned sequences from FASTA."""
+    """Load aligned sequences from FASTA, handling both DNA and RNA input."""
     print(f"Loading alignment from {filepath}...")
     sequences = []
 
-    for i, seq in enumerate(skbio.io.read(filepath, format='fasta', constructor=skbio.DNA)):
-        sequences.append(seq)
-        if (i + 1) % 50000 == 0:
-            print(f"  Loaded {i + 1} sequences")
+    # Try DNA first; fall back to RNA and convert (cmalign outputs RNA by default)
+    try:
+        for i, seq in enumerate(skbio.io.read(filepath, format='fasta', constructor=skbio.DNA)):
+            sequences.append(seq)
+            if (i + 1) % 50000 == 0:
+                print(f"  Loaded {i + 1} sequences")
+    except ValueError:
+        print("  RNA characters detected, converting U→T...")
+        sequences = []
+        for i, seq in enumerate(skbio.io.read(filepath, format='fasta', constructor=skbio.RNA)):
+            sequences.append(seq.reverse_transcribe())
+            if (i + 1) % 50000 == 0:
+                print(f"  Loaded {i + 1} sequences")
 
     print(f"Total sequences: {len(sequences)}")
     return sequences

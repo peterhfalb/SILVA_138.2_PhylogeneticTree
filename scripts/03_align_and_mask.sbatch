@@ -69,6 +69,7 @@ cmalign --cpu "$CMALIGN_THREADS" \
     --mxsize 12000 \
     --maxtau 0.2 \
     --matchonly \
+    --dnaout \
     --outformat Pfam \
     "${MODELS_DIR}/RF00177.cm" \
     "$CENTROID_FASTA" \
