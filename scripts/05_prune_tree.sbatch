@@ -14,14 +14,18 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESULTS_DIR="${SCRIPT_DIR}/results"
 LOGS_DIR="${SCRIPT_DIR}/logs"
-VENV_DIR="${SCRIPT_DIR}/venv"
+CONTAINER_DIR="${SCRIPT_DIR}/.containers"
 
-mkdir -p "${RESULTS_DIR}/treemmer" "$LOGS_DIR"
+mkdir -p "${RESULTS_DIR}/treemmer" "$LOGS_DIR" "$CONTAINER_DIR"
 
 PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 TREE_FILE="${RESULTS_DIR}/iqtree/silva_138.2_nr99.treefile"
 TARGET_TIPS=10000
 N_PARALLEL_RUNS=4
+
+# Singularity container settings
+TREEMMER_IMAGE="${CONTAINER_DIR}/treemmer_0.3.sif"
+TREEMMER_SB="${CONTAINER_DIR}/treemmer_sb"
 
 echo "==========================================="
 echo "STEP 5: Prune tree to 10K tips with Treemmer"
@@ -32,7 +36,7 @@ echo ""
 
 # Load modules
 module purge
-module load python3
+module load singularity
 module load parallel
 
 # Check input
@@ -48,8 +52,23 @@ echo "Input tree tips: $INPUT_TIPS"
 echo "Target tips: $TARGET_TIPS"
 echo ""
 
-# Activate venv
-source "${VENV_DIR}/bin/activate"
+# === Download/setup Singularity container if needed ===
+if [ ! -f "$TREEMMER_IMAGE" ]; then
+    echo "Downloading Treemmer Singularity image (first run only)..."
+    singularity pull --arch amd64 \
+        --dir "$CONTAINER_DIR" \
+        library://fmenardo/treemmer/treemmer:0.3
+
+    # Note: singularity pull downloads to treemmer_0.3.sif by default
+fi
+
+if [ ! -d "$TREEMMER_SB" ]; then
+    echo "Building Singularity sandbox..."
+    singularity build --sandbox "$TREEMMER_SB" "$TREEMMER_IMAGE"
+fi
+
+echo "Using Treemmer container: $TREEMMER_SB"
+echo ""
 
 # === Run Treemmer with multiple seeds in parallel ===
 echo "Running $N_PARALLEL_RUNS parallel Treemmer instances (different random seeds)..."
@@ -60,9 +79,10 @@ for seed in $(seq 1 $N_PARALLEL_RUNS); do
     mkdir -p "${RESULTS_DIR}/treemmer/run_${seed}"
 done
 
-# Run all seeds in parallel
+# Run all seeds in parallel using Singularity
+# Note: treemmer command inside container is: python3 /Treemmer_v0.3.py
 parallel --jobs "$N_PARALLEL_RUNS" \
-    "treemmer -t '${TREE_FILE}' -TTR ${TARGET_TIPS} -o '${RESULTS_DIR}/treemmer/run_{}/silva_138.2_nr99_10k'" \
+    "singularity exec '${TREEMMER_SB}' python3 /Treemmer_v0.3.py -t '${TREE_FILE}' -TTR ${TARGET_TIPS} -o '${RESULTS_DIR}/treemmer/run_{}/silva_138.2_nr99_10k'" \
     ::: $(seq 1 $N_PARALLEL_RUNS)
 
 echo ""
@@ -122,10 +142,9 @@ echo "  Reduction: $(awk "BEGIN {printf \"%.1f\", 100.0 * (1 - $FINAL_TIPS / $IN
     echo "Output tree: $FINAL_TIPS tips (target: $TARGET_TIPS)"
     echo "Parallel runs: $N_PARALLEL_RUNS"
     echo "Selected run: $BEST_RUN"
+    echo "Container: Singularity (treemmer v0.3)"
     echo "Wall time: ${SECONDS} seconds"
 } >> "$PIPELINE_LOG"
-
-deactivate
 
 echo ""
 echo "Output:"

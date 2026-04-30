@@ -2,6 +2,9 @@
 SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz
 SILVA_138.2_SSURef_NR99_tax_silva.fasta
 
+# Singularity containers (large, auto-downloaded on first run)
+.containers/
+
 # Results
 results/
 results/**/*.fasta

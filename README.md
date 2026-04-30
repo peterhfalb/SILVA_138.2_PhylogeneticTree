@@ -50,6 +50,12 @@ pip install -r requirements.txt
 deactivate
 ```
 
+**Note on Treemmer:** Treemmer (step 5) runs via Singularity container. The container image will be automatically downloaded on first run:
+```bash
+module load singularity  # Just verify it's available
+# Container will download to .containers/treemmer_0.3.sif on first pruning job
+```
+
 ## Running the Pipeline
 
 ### Option 1: Submit all jobs with dependencies (recommended)
@@ -134,7 +140,16 @@ Expected runtime: 48–72 hours depending on alignment size.
 ### Step 5: Tree Pruning (Treemmer)
 
 **File:** `scripts/05_prune_tree.sbatch`  
-**Resources:** agsmall, 8 cores, 32 GB, 4 hours
+**Resources:** agsmall, 8 cores, 32 GB, 4 hours  
+**Container:** Singularity (treemmer v0.3)
+
+**Treemmer Setup:** The script automatically downloads and builds the Singularity container on first run:
+```bash
+singularity pull library://fmenardo/treemmer/treemmer:0.3
+singularity build --sandbox .containers/treemmer_sb .containers/treemmer_0.3.sif
+```
+
+The container is cached in `.containers/` for reuse.
 
 **Parallelism:** Runs 4 independent Treemmer instances in parallel (using GNU parallel), each with a different random seed. The best result is selected.
 
@@ -197,17 +212,19 @@ logs/
 
 **Modules (available on Agate):**
 ```bash
-module load vsearch
-module load infernal
-module load iqtree
-module load parallel
-module load python3
+module load vsearch          # Step 2: clustering
+module load infernal         # Step 3: cmalign
+module load iqtree           # Step 4: tree building
+module load singularity      # Step 5: Treemmer (via container)
+module load parallel         # Step 5: parallel job execution
+module load python3          # Steps 3, setup
 ```
 
 **Python packages** (install via `pip install -r requirements.txt`):
 - scikit-bio ≥0.5.7 — FASTA/alignment parsing
 - numpy ≥1.19.0 — array operations for masking
-- treemmer ≥0.3 — tree pruning with PD maximization
+
+**Note:** Treemmer (step 5) runs via Singularity container and is downloaded automatically on first use.
 
 ## Notes
 
