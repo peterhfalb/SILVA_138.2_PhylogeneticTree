@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=silva-tree
-#SBATCH --partition=aglarge
+#SBATCH --partition=msismall
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=500G
 #SBATCH --time=72:00:00

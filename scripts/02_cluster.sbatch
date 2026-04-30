@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=silva-cluster
-#SBATCH --partition=agsmall
+#SBATCH --partition=msismall
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
 #SBATCH --time=4:00:00

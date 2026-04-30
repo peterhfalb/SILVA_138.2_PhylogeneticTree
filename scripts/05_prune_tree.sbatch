@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=silva-prune
-#SBATCH --partition=agsmall
+#SBATCH --partition=msismall
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=4:00:00

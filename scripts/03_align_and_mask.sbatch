@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=silva-align
-#SBATCH --partition=aglarge
+#SBATCH --partition=msismall
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
 #SBATCH --time=12:00:00
