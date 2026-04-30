@@ -78,8 +78,10 @@ echo "cmalign exit code: $?"
 echo "cmalign log tail:"
 tail -20 "$CMALIGN_LOG"
 
-# Convert Pfam format to FASTA using esl-reformat
-esl-reformat fasta "$ALIGNED_PFAM" > "$ALIGNED_FASTA"
+# Convert Pfam format to FASTA
+source "${VENV_DIR}/bin/activate"
+python3 "${SCRIPT_DIR}/scripts/pfam_to_fasta.py" "$ALIGNED_PFAM" "$ALIGNED_FASTA"
+deactivate
 rm "$ALIGNED_PFAM"
 
 ALIGNED_COUNT=$(grep -c "^>" "$ALIGNED_FASTA")
