@@ -8,6 +8,7 @@
 #SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-align-%j.out
 #SBATCH --error=logs/silva-align-%j.err
+#SBATCH --chdir=/users/9/falb0011/silva_tree_build/SILVA_138_iqTree/SILVA_138.2_PhylogeneticTree
 
 set -e
 
