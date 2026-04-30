@@ -12,7 +12,6 @@ Usage:
 
 import sys
 import argparse
-import skbio
 
 
 def extract_taxonomy(fasta_path, output_path):
@@ -20,7 +19,7 @@ def extract_taxonomy(fasta_path, output_path):
     Extract full SILVA lineage from sequence headers.
 
     SILVA format: >ID taxonomy_string (entire semicolon-delimited lineage)
-    This extracts the FULL lineage, not just the last element.
+    Parses headers directly to avoid skbio DNA/RNA character validation.
 
     Args:
         fasta_path: Path to input FASTA
@@ -29,33 +28,23 @@ def extract_taxonomy(fasta_path, output_path):
     print(f"Reading {fasta_path}...")
 
     seq_count = 0
-    written_count = 0
 
-    with open(output_path, 'w') as out_f:
-        # Write header
+    with open(fasta_path) as in_f, open(output_path, 'w') as out_f:
         out_f.write("seqid\ttaxonomy\n")
 
-        # Read sequences
-        for seq in skbio.io.read(fasta_path, format='fasta', constructor=skbio.DNA):
-            seq_id = seq.metadata.get('id', '')
-            description = seq.metadata.get('description', '')
-
-            # In scikit-bio, 'description' is everything after the first space in the header
-            # For SILVA format: >ID TAXONOMY
-            # So description = TAXONOMY (the full lineage string)
-            if description:
-                taxonomy = description.strip()
-            else:
-                taxonomy = 'unknown'
-
+        for line in in_f:
+            if not line.startswith('>'):
+                continue
+            parts = line[1:].rstrip().split(' ', 1)
+            seq_id = parts[0]
+            taxonomy = parts[1].strip() if len(parts) > 1 else 'unknown'
             out_f.write(f"{seq_id}\t{taxonomy}\n")
-            written_count += 1
             seq_count += 1
 
             if seq_count % 50000 == 0:
                 print(f"  Processed {seq_count} sequences")
 
-    print(f"✓ Extracted {written_count} sequences to {output_path}")
+    print(f"✓ Extracted {seq_count} sequences to {output_path}")
     return 0
 
 
