@@ -22,7 +22,7 @@ VENV_DIR="${SCRIPT_DIR}/venv"
 mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
 PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
-CENTROID_FASTA="${RESULTS_DIR}/centroids_97.fasta"
+CENTROID_FASTA="${RESULTS_DIR}/centroids_97_bacteria.fasta"
 ALIGNED_FASTA="${RESULTS_DIR}/centroids_aligned.fasta"
 MASKED_FASTA="${RESULTS_DIR}/centroids_masked.fasta"
 TAXONOMY_TSV="${RESULTS_DIR}/centroids_taxonomy.tsv"

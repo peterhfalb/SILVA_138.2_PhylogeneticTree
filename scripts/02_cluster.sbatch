@@ -71,21 +71,36 @@ echo "Output centroids: $CENTROID_COUNT"
 CLUSTER_RATIO=$(awk "BEGIN {printf \"%.1f\", 100.0 * $CENTROID_COUNT / $INPUT_COUNT}")
 echo "Cluster compression: $CLUSTER_RATIO%"
 
+# === Filter bacteria only ===
+echo ""
+echo "Filtering to bacteria only (removing archaea and eukaryotes)..."
+grep -A1 "^>.*Bacteria;" "${RESULTS_DIR}/centroids_97.fasta" \
+    | grep -v "^--$" \
+    > "${RESULTS_DIR}/centroids_97_bacteria.fasta"
+
+BACTERIA_COUNT=$(grep -c "^>" "${RESULTS_DIR}/centroids_97_bacteria.fasta")
+REMOVED=$((CENTROID_COUNT - BACTERIA_COUNT))
+echo "Bacteria centroids: $BACTERIA_COUNT"
+echo "Removed (archaea/eukaryotes): $REMOVED"
+
 # Log to pipeline.log
 {
     echo ""
     echo "=== STEP 2: Clustering [$(date)] ==="
     echo "Input sequences: $INPUT_COUNT"
-    echo "Output centroids: $CENTROID_COUNT"
+    echo "Output centroids (all): $CENTROID_COUNT"
     echo "Cluster compression: ${CLUSTER_RATIO}%"
     echo "Identity threshold: 97%"
+    echo "Bacteria only: $BACTERIA_COUNT"
+    echo "Removed (archaea/eukaryotes): $REMOVED"
     echo "Wall time: ${SECONDS} seconds"
 } >> "$PIPELINE_LOG"
 
 echo ""
-echo "✓ Clustering complete"
+echo "✓ Clustering and filtering complete"
 echo "Outputs:"
-echo "  - ${RESULTS_DIR}/centroids_97.fasta"
+echo "  - ${RESULTS_DIR}/centroids_97.fasta (all)"
+echo "  - ${RESULTS_DIR}/centroids_97_bacteria.fasta (bacteria only)"
 echo "  - ${RESULTS_DIR}/clusters_97.uc"
 echo ""
 echo "Next step:"
