@@ -4,7 +4,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
 #SBATCH --time=4:00:00
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-cluster-%j.out
 #SBATCH --error=logs/silva-cluster-%j.err
 

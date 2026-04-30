@@ -4,7 +4,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=4:00:00
-#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-prune-%j.out
 #SBATCH --error=logs/silva-prune-%j.err
 

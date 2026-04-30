@@ -4,7 +4,8 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
 #SBATCH --time=12:00:00
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-align-%j.out
 #SBATCH --error=logs/silva-align-%j.err
 
