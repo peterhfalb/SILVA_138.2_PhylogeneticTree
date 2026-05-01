@@ -32,7 +32,7 @@ echo ""
 
 # Load iqtree
 module purge
-module load iqtree
+module load iqtree2
 
 # Check input
 if [ ! -f "$MASKED_FASTA" ]; then
