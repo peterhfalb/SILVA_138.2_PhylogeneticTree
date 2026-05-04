@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=silva-tree
-#SBATCH --partition=msismall
-#SBATCH --cpus-per-task=64
-#SBATCH --mem=500G
-#SBATCH --time=72:00:00
+#SBATCH --partition=agsmall
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=64G
+#SBATCH --time=48:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-tree-%j.out
@@ -17,22 +17,23 @@ SCRIPT_DIR="$(pwd)"
 RESULTS_DIR="${SCRIPT_DIR}/results"
 LOGS_DIR="${SCRIPT_DIR}/logs"
 
-mkdir -p "${RESULTS_DIR}/iqtree" "$LOGS_DIR"
+mkdir -p "${RESULTS_DIR}/fasttree" "$LOGS_DIR"
 
 PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 MASKED_FASTA="${RESULTS_DIR}/centroids_masked.fasta"
-TREE_PREFIX="${RESULTS_DIR}/iqtree/silva_138.2_nr99"
+TREE_NWK="${RESULTS_DIR}/fasttree/silva_138.2_nr99.nwk"
+TREE_LOG="${RESULTS_DIR}/fasttree/silva_138.2_nr99.log"
 
 echo "========================================="
-echo "STEP 4: Build tree with IQ-TREE"
+echo "STEP 4: Build tree with FastTree2"
 echo "========================================="
 echo "Started: $(date)"
 echo "Job ID: $SLURM_JOB_ID"
 echo ""
 
-# Load iqtree
+# Load FastTree (multi-threaded OpenMP build)
 module purge
-module load iqtree2
+module load fasttree
 
 # Check input
 if [ ! -f "$MASKED_FASTA" ]; then
@@ -47,62 +48,54 @@ ALN_WIDTH=$(grep -v "^>" "$MASKED_FASTA" | head -1 | wc -c)
 echo "Alignment width: $ALN_WIDTH columns"
 echo ""
 
-# Run IQ-TREE
-echo "Running IQ-TREE2 with ModelFinder + 1000 ultrafast bootstrap replicates..."
-echo "Command: iqtree2 -s $MASKED_FASTA -m TEST -bb 1000 -nt AUTO -ntmax 64"
+echo "Note: module is single-threaded SSE3 build (no OpenMP)"
 echo ""
 
-iqtree2 \
-    -s "$MASKED_FASTA" \
-    -m TEST \
-    -bb 1000 \
-    -nt AUTO \
-    -ntmax "$SLURM_CPUS_PER_TASK" \
-    -pre "$TREE_PREFIX" \
-    -seed 12345
+# Run FastTree with GTR+gamma model on nucleotides
+# -gtr:     generalized time-reversible model (appropriate for 16S rRNA)
+# -gamma:   rescale branch lengths to optimize Gamma20 likelihood after CAT
+# -nt:      nucleotide alignment (not amino acid)
+# -fastest: faster NJ phase + reduced memory (recommended for >50,000 sequences)
+# -log:     detailed log file
+echo "Running FastTree (GTR+gamma, nucleotide, fastest mode)..."
+fasttree \
+    -gtr \
+    -gamma \
+    -nt \
+    -fastest \
+    -log "$TREE_LOG" \
+    "$MASKED_FASTA" \
+    > "$TREE_NWK"
 
 # Check for successful completion
-if [ ! -f "${TREE_PREFIX}.treefile" ]; then
-    echo "ERROR: Tree file not found after IQ-TREE run"
+if [ ! -f "$TREE_NWK" ]; then
+    echo "ERROR: Tree file not found after FastTree run"
     exit 1
 fi
 
-# Extract key statistics from IQ-TREE output
+TREE_SIZE=$(wc -c < "$TREE_NWK")
+TREE_TIPS=$(grep -o ":" "$TREE_NWK" | wc -l)
 echo ""
-echo "Tree building complete. Key outputs:"
-ls -lh "${TREE_PREFIX}".{treefile,log,iqtree}
-
-# Parse model from .iqtree file
-echo ""
-echo "Model selection results:"
-if [ -f "${TREE_PREFIX}.iqtree" ]; then
-    grep "Best-fit model" "${TREE_PREFIX}.iqtree" | head -1
-fi
-
-TREE_TIPS=$(grep -o ":" "${TREE_PREFIX}.treefile" | wc -l)
-echo "Tree tips: $TREE_TIPS"
+echo "Tree building complete."
+echo "  Output:    $TREE_NWK"
+echo "  File size: $TREE_SIZE bytes"
+echo "  Tips:      $TREE_TIPS"
 
 # Log to pipeline.log
-IQTREE_LOG="${TREE_PREFIX}.log"
-BEST_MODEL=$(grep "Best-fit model" "${TREE_PREFIX}.iqtree" | head -1 | sed 's/^.*: //' || echo "unknown")
-
 {
     echo ""
-    echo "=== STEP 4: IQ-TREE [$(date)] ==="
-    echo "Input: $SEQ_COUNT sequences × ${ALN_WIDTH} columns"
-    echo "Model selection: -m TEST (ModelFinder)"
-    echo "Bootstrap: -bb 1000 (ultrafast)"
-    echo "Best model: $BEST_MODEL"
-    echo "Output tips: $TREE_TIPS"
+    echo "=== STEP 4: FastTree2 [$(date)] ==="
+    echo "Tool:   FastTreeMP (GTR+gamma, nucleotide)"
+    echo "Input:  $SEQ_COUNT sequences x ${ALN_WIDTH} columns"
+    echo "Output: $TREE_TIPS tips"
     echo "Wall time: ${SECONDS} seconds"
 } >> "$PIPELINE_LOG"
 
 echo ""
 echo "✓ Tree building complete"
 echo "Outputs:"
-echo "  - ${TREE_PREFIX}.treefile (ML tree)"
-echo "  - ${TREE_PREFIX}.log (IQ-TREE log)"
-echo "  - ${TREE_PREFIX}.iqtree (full report)"
+echo "  - $TREE_NWK (Newick tree)"
+echo "  - $TREE_LOG (FastTree log)"
 echo ""
 echo "Next step:"
 echo "  sbatch scripts/05_prune_tree.sbatch"
