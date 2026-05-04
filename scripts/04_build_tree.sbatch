@@ -3,7 +3,7 @@
 #SBATCH --partition=agsmall
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=64G
-#SBATCH --time=48:00:00
+#SBATCH --time=36:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=falb0011@umn.edu
 #SBATCH --output=logs/silva-tree-%j.out
