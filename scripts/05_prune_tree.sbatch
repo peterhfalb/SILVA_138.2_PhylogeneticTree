@@ -21,7 +21,7 @@ CONTAINER_DIR="${SCRIPT_DIR}/.containers"
 mkdir -p "${RESULTS_DIR}/treemmer" "$LOGS_DIR" "$CONTAINER_DIR"
 
 PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
-TREE_FILE="${RESULTS_DIR}/iqtree/silva_138.2_nr99.treefile"
+TREE_FILE="${RESULTS_DIR}/fasttree/silva_138.2_nr99.nwk"
 TARGET_TIPS=10000
 N_PARALLEL_RUNS=4
 
