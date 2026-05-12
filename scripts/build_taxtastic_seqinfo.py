@@ -7,9 +7,9 @@ tax_ids.txt are then used with 'taxit taxtable' to extract the minimal NCBI
 taxonomy subtree for the reference package.
 
 SILVA taxmap format (tab-delimited, with header):
-  primaryAccession.start.stop  primaryAccession  start  stop  path  organism_name  ncbi_taxid
+  primaryAccession  start  stop  path  organism_name  ncbi_taxid
 
-The seqname in seq_info.csv matches the SILVA FASTA sequence ID (primaryAccession.start.stop).
+The seqname is constructed as primaryAccession.start.stop to match the SILVA FASTA sequence ID.
 
 Usage:
   python build_taxtastic_seqinfo.py taxmap.txt seq_info.csv tax_ids.txt [--seqids file.txt]
@@ -46,14 +46,20 @@ def main():
     with open(args.taxmap) as f:
         reader = csv.DictReader(f, delimiter='\t')
         for i, row in enumerate(reader):
-            # Handle minor column-name differences across SILVA releases
-            seqname = (row.get('primaryAccession.start.stop') or
-                       row.get('#primaryAccession.start.stop') or '').strip()
             accession = (row.get('primaryAccession') or '').strip()
+            start = (row.get('start') or '').strip()
+            stop = (row.get('stop') or '').strip()
             organism = (row.get('organism_name') or '').strip()
             tax_id = (row.get('ncbi_taxid') or row.get('taxid') or '').strip()
 
-            if not seqname or not tax_id:
+            # Construct seqname from parts (matches SILVA FASTA ID format)
+            if accession and start and stop:
+                seqname = f"{accession}.{start}.{stop}"
+            else:
+                skipped += 1
+                continue
+
+            if not tax_id:
                 skipped += 1
                 continue
 
