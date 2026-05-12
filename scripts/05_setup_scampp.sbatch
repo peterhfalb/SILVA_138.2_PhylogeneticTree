@@ -24,6 +24,14 @@ PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 TREE_FILE="${RESULTS_DIR}/fasttree/silva_138.2_nr99.nwk"
 TREE_LOG="${RESULTS_DIR}/fasttree/silva_138.2_nr99.log"
 ALN_FILE="${RESULTS_DIR}/centroids_masked.fasta"
+ALN_STO="${RESULTS_DIR}/centroids_masked.sto"
+TAXMAP="${SCRIPT_DIR}/taxmap_slv_ssu_ref_nr_138.2.txt"
+TAXONOMY_DB="${RESULTS_DIR}/taxonomy/taxonomy.db"
+BACTERIA_FASTA="${RESULTS_DIR}/centroids_97_bacteria.fasta"
+SEQIDS_TXT="${RESULTS_DIR}/scampp/seqids.txt"
+TAX_IDS="${RESULTS_DIR}/scampp/tax_ids.txt"
+SEQ_INFO="${RESULTS_DIR}/scampp/seq_info.csv"
+TAXA_CSV="${RESULTS_DIR}/scampp/taxa.csv"
 REFPKG="${RESULTS_DIR}/scampp/silva_138.2_nr99.refpkg"
 
 echo "==========================================="
@@ -110,15 +118,63 @@ python3 -c "import bscampp; print('bscampp OK')"
 #echo ""
 
 # ---------------------------------------------------------------
-# Create Taxtastic reference package
+# Taxonomy: seq_info.csv + NCBI taxonomy via taxit taxtable
 # FastTree log provides GTR rates + gamma parameters for pplacer.
 # Per SCAMPP paper: FastTree parameters work directly with pplacer-SCAMPP.
 # ---------------------------------------------------------------
+
+# Check required inputs
+if [ ! -f "$TAXMAP" ]; then
+    echo "ERROR: SILVA taxmap not found: $TAXMAP"
+    echo "Run step 1 first: bash scripts/01_download_silva.sh"
+    exit 1
+fi
+
+if [ ! -f "$TAXONOMY_DB" ]; then
+    echo "ERROR: NCBI taxonomy database not found: $TAXONOMY_DB"
+    echo "Create it on the login node (requires internet):"
+    echo "  source venv/bin/activate"
+    echo "  mkdir -p results/taxonomy && cd results/taxonomy"
+    echo "  taxit new_database taxonomy.db && cd \$OLDPWD"
+    exit 1
+fi
+
+# Extract bacteria seqids from the bacteria-only FASTA
+echo "Extracting bacteria sequence IDs..."
+grep "^>" "$BACTERIA_FASTA" | sed 's/^>//' | awk '{print $1}' > "$SEQIDS_TXT"
+echo "  $(wc -l < "$SEQIDS_TXT") seqids"
+
+# Build seq_info.csv and tax_ids.txt from SILVA taxmap (NCBI tax_ids)
+echo ""
+echo "Building seq_info.csv from SILVA taxmap..."
+python3 "${SCRIPT_DIR}/scripts/build_taxtastic_seqinfo.py" \
+    "$TAXMAP" \
+    "$SEQ_INFO" \
+    "$TAX_IDS" \
+    --seqids "$SEQIDS_TXT"
+
+# Extract minimal NCBI taxonomy subtree for our sequences
+echo ""
+echo "Running taxit taxtable..."
+taxit taxtable "$TAXONOMY_DB" -f "$TAX_IDS" -o "$TAXA_CSV"
+echo "  Taxa written: $TAXA_CSV"
+
+# Convert masked FASTA alignment to Stockholm for --aln-sto
+echo ""
+echo "Converting masked alignment to Stockholm format..."
+python3 "${SCRIPT_DIR}/scripts/fasta_to_stockholm.py" \
+    "$ALN_FILE" \
+    "$ALN_STO"
+
+# Create reference package
+echo ""
 echo "Creating Taxtastic reference package..."
-echo "  Tree:   $TREE_FILE"
-echo "  Log:    $TREE_LOG"
-echo "  Align:  $ALN_FILE"
-echo "  Output: $REFPKG"
+echo "  Tree:     $TREE_FILE"
+echo "  Log:      $TREE_LOG"
+echo "  Align:    $ALN_FILE"
+echo "  Profile:  ${SCRIPT_DIR}/models/RF00177.cm"
+echo "  Taxonomy: $TAXA_CSV"
+echo "  Output:   $REFPKG"
 
 [ -d "$REFPKG" ] && rm -rf "$REFPKG"
 
@@ -126,8 +182,12 @@ taxit create \
     -l "silva_138.2_nr99_bacteria" \
     -P "$REFPKG" \
     --aln-fasta "$ALN_FILE" \
-    --tree "$TREE_FILE" \
-    --tree-stats "$TREE_LOG"
+    --aln-sto "$ALN_STO" \
+    --profile "${SCRIPT_DIR}/models/RF00177.cm" \
+    --tree-file "$TREE_FILE" \
+    --tree-stats "$TREE_LOG" \
+    --seq-info "$SEQ_INFO" \
+    --taxonomy "$TAXA_CSV"
 
 echo ""
 echo "Reference package contents:"
