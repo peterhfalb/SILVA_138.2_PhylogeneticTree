@@ -1,48 +1,45 @@
-# SILVA 138.2 NR99 Phylogenetic Tree Pipeline
+# SILVA 138.2 NR99 Bacterial Phylogenetic Tree Pipeline
 
-Build a high-quality phylogenetic tree from the SILVA NR99 138.2 rRNA database using modern sequence analysis tools.
+Builds a full-resolution bacterial reference phylogenetic tree from SILVA NR99 138.2, suitable for phylogenetic placement of 16S amplicon data using pplacer-BSCAMPP.
 
 ## Overview
 
-This pipeline constructs a reference phylogenetic tree by:
+The pipeline runs as five modular SLURM jobs on Agate (UMN HPC):
 
-1. **Downloading** the unaligned SILVA NR99 138.2 sequences (~510K sequences)
-2. **Clustering** at 97% sequence identity using VSEARCH to reduce redundancy
-3. **Aligning** centroid sequences to the RF00177 SSU rRNA covariance model using cmalign (Infernal)
-4. **Masking** high-gap columns in the alignment (keeping columns with <99.56% gaps)
-5. **Building** a maximum-likelihood tree with IQ-TREE, using:
-   - ModelFinder to select the best evolutionary model
-   - 1000 ultrafast bootstrap replicates
-6. **Pruning** the tree to 10,000 tips using Treemmer, maximizing phylogenetic diversity
+1. **Download** the unaligned SILVA NR99 138.2 FASTA (~510K sequences)
+2. **Cluster** at 97% identity (VSEARCH), then filter to bacteria only — yields 167,957 centroids
+3. **Align & mask** centroid sequences to RF00177.cm (cmalign), convert, and mask gappy columns
+4. **Build tree** with FastTree2 (GTR+gamma, `-fastest`) — full 167,957-tip bacterial tree
+5. **Set up SCAMPP** — create a Taxtastic reference package for pplacer-BSCAMPP placement
 
-All steps run on Agate (UMN HPC) as modular SLURM jobs.
+No tree pruning is performed. The full 167,957-tip tree is used directly with pplacer-BSCAMPP, which handles backbone trees up to 200,000 leaves (Wedell, Cai & Warnow 2023).
 
-### Output Files
+### Final Output Files
 
 | File | Description |
 |------|-------------|
-| `results/centroids_masked.fasta` | Final masked alignment for tree building |
-| `results/iqtree/silva_138.2_nr99.treefile` | Maximum-likelihood tree (Newick format) |
-| `results/iqtree/silva_138.2_nr99.log` | IQ-TREE detailed log |
-| `results/treemmer/best/silva_138.2_nr99_10k.nwk` | Pruned tree (10,000 tips) |
-| `results/centroids_taxonomy.tsv` | Taxonomic assignment per centroid sequence |
-| `logs/pipeline.log` | Summary log with statistics from each step |
+| `results/centroids_masked.fasta` | Masked alignment used for tree building (~1533 columns) |
+| `results/fasttree/silva_138.2_nr99.nwk` | Full bacterial tree, 167,957 tips (Newick) |
+| `results/fasttree/silva_138.2_nr99.log` | FastTree log (GTR+gamma model parameters) |
+| `results/centroids_taxonomy.tsv` | Full SILVA lineage per centroid (seqid + semicolon-delimited lineage) |
+| `results/scampp/silva_138.2_nr99.refpkg/` | Taxtastic reference package for pplacer |
+| `logs/pipeline.log` | Per-step statistics summary |
 
-## Setup (once, interactive)
+## Setup (once, interactive on Agate login node)
+
+### 1. Download SILVA
 
 ```bash
-# On Agate login node:
 cd /path/to/SILVA_138.2_NR99_fastTree
 bash scripts/01_download_silva.sh
 ```
 
-This downloads the ~2.2 GB SILVA FASTA file. If it already exists, the script verifies it.
+Downloads `SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz` (~2.2 GB). Safe to re-run (checks for existing file).
 
-## Installation
+### 2. Create Python virtual environment
 
 ```bash
-# Load Python and create virtual environment
-module load python3
+module load python3          # loads Python 3.10+
 python3 -m venv venv
 source venv/bin/activate
 pip install -U pip
@@ -50,209 +47,195 @@ pip install -r requirements.txt
 deactivate
 ```
 
-**Note on Treemmer:** Treemmer (step 5) runs via Singularity container. The container image will be automatically downloaded on first run:
-```bash
-module load singularity  # Just verify it's available
-# Container will download to .containers/treemmer_0.3.sif on first pruning job
-```
-
 ## Running the Pipeline
 
-### Option 1: Submit all jobs with dependencies (recommended)
+### Option A: Submit all jobs with automatic dependencies
 
 ```bash
 bash scripts/submit_pipeline.sh
 ```
 
-This submits all 4 jobs with dependencies, so they run sequentially. Each job waits for the previous one to complete successfully.
+Submits jobs 2–5 chained with `--dependency=afterok`, so each step only starts if the previous succeeded.
 
-**Monitor progress:**
-```bash
-squeue -u $USER
-slog <job_id>  # Stream logs for a specific job
-```
-
-### Option 2: Submit each step manually
+### Option B: Submit steps individually
 
 ```bash
-# Step 2: Clustering
 sbatch scripts/02_cluster.sbatch
-
-# Step 3: Alignment & Masking (only after step 2 completes)
-sbatch scripts/03_align_and_mask.sbatch
-
-# Step 4: Tree Building (only after step 3 completes)
-sbatch scripts/04_build_tree.sbatch
-
-# Step 5: Pruning (only after step 4 completes)
-sbatch scripts/05_prune_tree.sbatch
+sbatch scripts/03_align_and_mask.sbatch   # after step 2
+sbatch scripts/04_build_tree.sbatch       # after step 3
+sbatch scripts/05_setup_scampp.sbatch     # after step 4
 ```
+
+Monitor: `squeue -u $USER`
 
 ## Pipeline Details
 
-### Step 2: Clustering (VSEARCH)
+### Step 2: Clustering & Bacteria Filtering
 
-**File:** `scripts/02_cluster.sbatch`  
+**File:** [scripts/02_cluster.sbatch](scripts/02_cluster.sbatch)  
 **Resources:** agsmall, 32 cores, 128 GB, 4 hours  
-**Input:** SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz (~510K sequences)  
-**Output:** 
-- `results/centroids_97.fasta` — representative sequences at 97% identity
-- `results/clusters_97.uc` — cluster assignments
+**Modules:** `vsearch`, `python3`
 
-Reduces ~510K sequences to ~50K–150K centroids (typical ~20% compression).
+1. VSEARCH 97% clustering: `--cluster_fast --id 0.97 --notrunclabels`
+2. `filter_bacteria.py` — keeps only bacterial centroids using SILVA taxonomy headers
+
+**Output:**
+- `results/centroids_97.fasta` — all centroids (206,289 total)
+- `results/centroids_97_bacteria.fasta` — bacteria-only centroids (167,957)
+- `results/clusters_97.uc` — cluster assignments
 
 ### Step 3: Alignment & Masking
 
-**File:** `scripts/03_align_and_mask.sbatch`  
-**Resources:** aglarge, 64 cores, 256 GB, 12 hours
+**File:** [scripts/03_align_and_mask.sbatch](scripts/03_align_and_mask.sbatch)  
+**Resources:** agsmall, 16 cores, 128 GB, 12 hours  
+**Modules:** `infernal`, `python3`
 
-**Substeps:**
-1. **cmalign** — aligns centroid sequences to RF00177.cm (SSU rRNA bacteria model)
-   - `--outformat afa` outputs aligned FASTA
-   - `--cpu 64` uses all available cores
-   - Output: `results/centroids_aligned.fasta` (~1500 columns)
-
-2. **Masking** — removes high-gap columns using `mask_alignment.py`
-   - Keeps columns with gap% < 99.56%
-   - Output: `results/centroids_masked.fasta` (~1000–1200 columns after masking)
-
-3. **Taxonomy Extraction** — parses SILVA headers to extract full lineage
-   - Output: `results/centroids_taxonomy.tsv` (seqid + full semicolon-delimited lineage)
-   - Fixes the bug from the original pipeline (extracts all ranks, not just last)
-
-### Step 4: Tree Building (IQ-TREE)
-
-**File:** `scripts/04_build_tree.sbatch`  
-**Resources:** aglarge, 64 cores, 500 GB, 72 hours
-
-**Key parameters:**
-- `-m TEST` — runs ModelFinder to select best substitution model
-- `-bb 1000` — 1000 ultrafast bootstrap replicates (fast, still statistically sound)
-- `-nt AUTO -ntmax 64` — auto-detect optimal thread count
+1. **cmalign** — aligns bacteria centroids to RF00177.cm (bacteria SSU rRNA model)
+   - `--matchonly` — outputs only the 1533 consensus match columns (drops insert columns)
+   - `--dnaout` — forces DNA output (T not U)
+   - `--outformat Pfam` — multi-block Stockholm format (required for large alignments)
+   - `--mxsize 12000 --maxtau 0.2` — memory and accuracy tuning for 167K sequences
+2. **pfam_to_fasta.py** — converts Pfam/Stockholm multi-block output to FASTA
+3. **mask_alignment.py** — removes columns with ≥99.56% gaps (numpy, fast)
+4. **extract_taxonomy.py** — parses SILVA FASTA headers to extract full lineage
 
 **Output:**
-- `results/iqtree/silva_138.2_nr99.treefile` — ML tree (primary output)
-- `results/iqtree/silva_138.2_nr99.log` — run log
-- `results/iqtree/silva_138.2_nr99.iqtree` — detailed report with selected model
+- `results/centroids_aligned.fasta` — aligned FASTA (1533 columns)
+- `results/centroids_masked.fasta` — masked alignment (~1533 columns, gappy columns removed)
+- `results/centroids_taxonomy.tsv` — `seqid\ttaxonomy` (full semicolon-delimited SILVA lineage)
 
-Expected runtime: 48–72 hours depending on alignment size.
+### Step 4: Tree Building (FastTree2)
 
-### Step 5: Tree Pruning (Treemmer)
+**File:** [scripts/04_build_tree.sbatch](scripts/04_build_tree.sbatch)  
+**Resources:** agsmall, 1 core, 64 GB, 36–48 hours  
+**Module:** `fasttree` (single-threaded SSE3 build; command: `fasttree`)
 
-**File:** `scripts/05_prune_tree.sbatch`  
-**Resources:** agsmall, 8 cores, 32 GB, 4 hours  
-**Container:** Singularity (treemmer v0.3)
-
-**Treemmer Setup:** The script automatically downloads and builds the Singularity container on first run:
 ```bash
-singularity pull library://fmenardo/treemmer/treemmer:0.3
-singularity build --sandbox .containers/treemmer_sb .containers/treemmer_0.3.sif
+fasttree -gtr -gamma -nt -fastest -log "$TREE_LOG" "$MASKED_FASTA" > "$TREE_NWK"
 ```
 
-The container is cached in `.containers/` for reuse.
+- `-gtr` — generalized time-reversible model (standard for 16S rRNA)
+- `-gamma` — rescales branch lengths to optimize Gamma20 likelihood after CAT approximation
+- `-nt` — nucleotide alignment
+- `-fastest` — required for >50,000 sequences (faster NJ phase, reduced memory)
 
-**Parallelism:** Runs 4 independent Treemmer instances in parallel (using GNU parallel), each with a different random seed. The best result is selected.
-
-**Algorithm:** Iteratively removes tips that contribute least to phylogenetic diversity (PD), preserving maximum diversity in the final 10K-tip tree.
+**Note:** IQ-TREE was evaluated but found infeasible at 167K sequences — thread benchmarking showed 39% efficiency at 2 threads, and O(N²) scaling made completion impossible within wall time limits. FastTree2 with `-fastest` is the standard approach for large 16S reference trees (used by SILVA itself).
 
 **Output:**
-- `results/treemmer/best/silva_138.2_nr99_10k.nwk` — pruned tree (10,000 tips)
-- `results/treemmer/best/silva_138.2_nr99_10k_tips.txt` — list of retained tip labels
+- `results/fasttree/silva_138.2_nr99.nwk` — full 167,957-tip tree (Newick)
+- `results/fasttree/silva_138.2_nr99.log` — FastTree log with GTR+gamma parameters
 
-## Troubleshooting
+### Step 5: SCAMPP Setup (Reference Package)
 
-### Job fails in Step 2 (VSEARCH)
-- Check: `logs/silva-cluster-*.err`
-- Ensure SILVA FASTA is downloaded: `ls -lh SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz`
+**File:** [scripts/05_setup_scampp.sbatch](scripts/05_setup_scampp.sbatch)  
+**Resources:** agsmall, 1 core, 32 GB, 2 hours  
+**Module:** `python3`
 
-### Job fails in Step 3 (cmalign)
-- Check: `logs/silva-align-*.err`
-- cmalign memory usage can be high; aglarge partition ensures sufficient RAM
-- If memory error: increase `--mem` in the sbatch script
+No pruning is performed. The full 167,957-tip tree is within pplacer-BSCAMPP's tested range (up to 200,000 leaves; Wedell et al. 2023).
 
-### Job fails in Step 4 (IQ-TREE)
-- Check: `logs/silva-tree-*.err` and `results/iqtree/silva_138.2_nr99.log`
-- IQ-TREE is memory-hungry on large alignments; 500 GB is usually sufficient
-- Run time: 48–72 hours for ~100K sequences is expected
+1. Installs `bscampp` and `taxtastic` into the venv
+2. Creates a Taxtastic reference package from the FastTree tree and its log file (which provides GTR+gamma model parameters for pplacer)
+3. Writes a per-study placement script: `scripts/run_placement.sh`
 
-### Job fails in Step 5 (Treemmer)
-- Check: `logs/silva-prune-*.err`
-- Treemmer Python package might need reinstalling: `pip install -U treemmer`
-- Ensure tree file was created in step 4: `ls -l results/iqtree/silva_138.2_nr99.treefile`
+```bash
+taxit create \
+    -l "silva_138.2_nr99_bacteria" \
+    -P results/scampp/silva_138.2_nr99.refpkg \
+    --aln-fasta results/centroids_masked.fasta \
+    --tree results/fasttree/silva_138.2_nr99.nwk \
+    --tree-stats results/fasttree/silva_138.2_nr99.log
+```
+
+**Output:**
+- `results/scampp/silva_138.2_nr99.refpkg/` — Taxtastic reference package
+- `scripts/run_placement.sh` — template script for per-study placement
+
+## Placing Query Sequences
+
+For each study with 16S ASVs or OTUs:
+
+```bash
+bash scripts/run_placement.sh /path/to/query_reads.fasta results/scampp/my_study 8
+```
+
+The script does two things:
+1. **Aligns queries** to RF00177.cm with cmalign (`--matchonly --dnaout`)
+2. **Places queries** into the reference tree using pplacer-BSCAMPP (`-b 2000`)
+
+Output: `results/scampp/my_study.jplace` — standard placement file readable by guppy, iTOL, etc.
+
+**Summarize placements:**
+```bash
+guppy fat results/scampp/my_study.jplace
+```
+
+**Note on pplacer binary:** pplacer must be available on PATH before running placements. Download from [https://github.com/matsen/pplacer/releases](https://github.com/matsen/pplacer/releases) and place in `bin/`. pplacer standalone (without SCAMPP) cannot handle trees >78K tips; always use `run_bscampp.py` (installed with `pip install bscampp`).
 
 ## Repository Structure
 
 ```
 scripts/
-  ├── 01_download_silva.sh        # Download SILVA FASTA
-  ├── 02_cluster.sbatch           # VSEARCH clustering
-  ├── 03_align_and_mask.sbatch    # cmalign + masking
-  ├── 04_build_tree.sbatch        # IQ-TREE
-  ├── 05_prune_tree.sbatch        # Treemmer pruning
-  ├── submit_pipeline.sh          # Master job submitter
-  ├── mask_alignment.py           # Gappy-column masking
-  └── extract_taxonomy.py         # Taxonomy extraction
+  01_download_silva.sh        Download SILVA NR99 138.2 FASTA
+  02_cluster.sbatch           VSEARCH 97% clustering + bacteria filter
+  03_align_and_mask.sbatch    cmalign + pfam_to_fasta + masking + taxonomy
+  04_build_tree.sbatch        FastTree2 GTR+gamma
+  05_setup_scampp.sbatch      Install BSCAMPP + create Taxtastic refpkg
+  run_placement.sh            Per-study placement (generated by step 5)
+  submit_pipeline.sh          Submit all jobs with dependency chaining
+  filter_bacteria.py          Filter centroids to bacteria only
+  pfam_to_fasta.py            Convert Pfam/Stockholm to FASTA
+  mask_alignment.py           Remove gappy alignment columns
+  extract_taxonomy.py         Extract SILVA taxonomy from FASTA headers
 models/
-  └── RF00177.cm                  # SSU rRNA covariance model (Infernal)
+  RF00177.cm                  Bacteria SSU rRNA covariance model (Infernal)
 results/
-  ├── iqtree/                     # IQ-TREE outputs
-  └── treemmer/                   # Treemmer outputs
+  centroids_97_bacteria.fasta Bacteria centroids
+  centroids_masked.fasta      Masked alignment (tree input)
+  fasttree/                   FastTree outputs (tree + log)
+  scampp/                     Reference package + per-study placements
+  centroids_taxonomy.tsv      Taxonomy per tip
 logs/
-  ├── pipeline.log                # Master pipeline log
-  └── silva-*.out / silva-*.err   # SLURM job logs
+  pipeline.log                Master pipeline log
+  silva-*.out / *.err         SLURM job logs
 ```
+
+## Troubleshooting
+
+**Step 2 (clustering) fails:**  
+Check `logs/silva-cluster-*.err`. Verify SILVA FASTA exists: `ls -lh SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz`
+
+**Step 3 (cmalign) fails with out-of-memory:**  
+Increase `--mxsize` in the cmalign call (try `16000`) or switch to `aglarge` partition.
+
+**Step 4 (FastTree) produces empty tree:**  
+Check `logs/silva-tree-*.err`. FastTree writes the tree to stdout; ensure the redirect is intact. Verify masked FASTA is not empty: `grep -c "^>" results/centroids_masked.fasta`
+
+**Step 5 (taxit) fails:**  
+The FastTree log (`silva_138.2_nr99.log`) must exist and contain GTR rate parameters. Confirm step 4 completed: `ls -lh results/fasttree/`
+
+**run_placement.sh fails at cmalign:**  
+Ensure `module load infernal` succeeds in your environment. RF00177.cm must be at `models/RF00177.cm`.
 
 ## Requirements
 
-**System:**
-- Agate supercomputer (UMN HPC) or similar HPC cluster
-- SLURM job scheduler
-- ~2.2 GB disk space for SILVA input
-- ~500 GB disk space for outputs
-
-**Modules (available on Agate):**
-```bash
-module load vsearch          # Step 2: clustering
-module load infernal         # Step 3: cmalign
-module load iqtree           # Step 4: tree building
-module load singularity      # Step 5: Treemmer (via container)
-module load parallel         # Step 5: parallel job execution
-module load python3          # Steps 3, setup
+**HPC modules (available on Agate):**
+```
+vsearch     Step 2: clustering
+infernal    Step 3: cmalign
+fasttree    Step 4: tree building
+python3     Steps 3, 5, and setup
 ```
 
-**Python packages** (install via `pip install -r requirements.txt`):
-- scikit-bio ≥0.5.7 — FASTA/alignment parsing
-- numpy ≥1.19.0 — array operations for masking
-
-**Note:** Treemmer (step 5) runs via Singularity container and is downloaded automatically on first use.
-
-## Notes
-
-### RF00177.cm Scope
-The RF00177 covariance model is trained on **bacterial** SSU rRNA sequences. The SILVA NR99 database contains bacteria, archaea, and eukaryotes. The alignment may be suboptimal for archaea and eukaryotic sequences, but they will still align. For a truly comprehensive tree including all domains, consider running separate pipelines with RF01959 (archaea) and RF01960 (eukaryotes).
-
-### Midpoint Rooting
-The tree output from IQ-TREE is unrooted. If you need a rooted tree, use scikit-bio:
-```bash
-python3 -c "
-import skbio
-tree = skbio.tree.TreeNode.read('results/iqtree/silva_138.2_nr99.treefile', format='newick')
-tree_rooted = tree.root_at_midpoint()
-with open('results/iqtree/silva_138.2_nr99_rooted.nwk', 'w') as f:
-    f.write(str(tree_rooted) + ';')
-"
-```
+**Python packages** (installed into `venv/` via `pip install -r requirements.txt`):
+- `numpy` — array operations for alignment masking
+- `bscampp` — installed in step 5 via pip
+- `taxtastic` — installed in step 5 via pip
 
 ## References
 
-- **SILVA 138.2:** https://www.arb-silva.de/
+- **SILVA 138.2:** Quast et al. (2013). Nucleic Acids Res 41:D590–D596. https://www.arb-silva.de/
 - **VSEARCH:** Rognes et al. (2016). PeerJ 4:e2584
-- **cmalign (Infernal):** Nawrocki & Eddy (2013). PLoS Comput Biol 9:e1003213
-- **IQ-TREE:** Minh et al. (2020). Mol Biol Evol 37(9):2461–2474
-- **Ultrafast bootstrap:** Hoang et al. (2018). Mol Biol Evol 35(2):518–522
-- **Treemmer:** Steel & Mooers (2010). Syst Biol 59(6):689–705
-- **Ben Kaehler's approach:** https://gist.github.com/BenKaehler/d9291d59bce5cd3d2a90c73b822b3a21
-
-## License
-
-This pipeline code is provided as-is for research purposes. SILVA 138.2 sequences are subject to the SILVA database license terms.
+- **Infernal/cmalign:** Nawrocki & Eddy (2013). PLoS Comput Biol 9:e1003213
+- **FastTree2:** Price, Dehal & Arkin (2010). PLoS ONE 5(3):e9490
+- **pplacer-BSCAMPP:** Wedell, Cai & Warnow (2023). IEEE/ACM TCBB 20(2):1417–1430
+- **RF00177:** Rfam database — bacteria SSU rRNA covariance model
