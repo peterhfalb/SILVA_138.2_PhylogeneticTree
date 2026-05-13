@@ -5,8 +5,16 @@ Mask gappy columns in a FASTA alignment.
 Removes columns with gap percentage above threshold, following Ben Kaehler's approach.
 Input FASTA can be from cmalign or any pre-aligned sequences.
 
-Usage:
-  python mask_alignment.py input.fasta output_masked.fasta [--gap-threshold 99.56]
+Two modes:
+  1. Derive mask from reference alignment (use during tree building):
+       python mask_alignment.py input.fasta output.fasta [--gap-threshold 99.56] [--mask-out mask.npy]
+     --mask-out saves the retained column indices so the same columns can be
+     applied to query alignments later.
+
+  2. Apply a saved mask to a query alignment (use during placement):
+       python mask_alignment.py query.fasta output.fasta --apply-mask mask.npy
+     The query alignment must have the same total number of columns as the
+     original reference alignment before masking (i.e. 1533 cmalign match columns).
 """
 
 import sys
@@ -98,6 +106,13 @@ def export_masked_alignment(sequences, keep_mask, output_path):
     print(f"Total exported: {seq_count} sequences")
 
 
+def load_mask(mask_path):
+    """Load a previously saved column mask (boolean array) from a .npy file."""
+    mask = np.load(mask_path)
+    print(f"Loaded column mask: {mask.sum()} of {len(mask)} columns retained ({mask_path})")
+    return mask
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Mask gappy columns in aligned FASTA'
@@ -105,12 +120,33 @@ def main():
     parser.add_argument('input', help='Input aligned FASTA')
     parser.add_argument('output', help='Output masked FASTA')
     parser.add_argument('--gap-threshold', type=float, default=99.56,
-                       help='Gap percentage threshold (default 99.56)')
+                       help='Gap percentage threshold for deriving mask (default 99.56)')
+    parser.add_argument('--mask-out', metavar='FILE',
+                       help='Save retained column indices to this .npy file '
+                            '(use when masking the reference alignment)')
+    parser.add_argument('--apply-mask', metavar='FILE',
+                       help='Apply a previously saved column mask instead of '
+                            'deriving one from gap frequency '
+                            '(use when masking query alignments for placement)')
 
     args = parser.parse_args()
 
     sequences = load_alignment(args.input)
-    keep_mask = mask_gappy_columns(sequences, args.gap_threshold)
+
+    if args.apply_mask:
+        keep_mask = load_mask(args.apply_mask)
+        n_cols = len(sequences[0].values)
+        if len(keep_mask) != n_cols:
+            print(f"ERROR: mask has {len(keep_mask)} columns but alignment has {n_cols}")
+            print("Query alignment must have the same number of columns as the "
+                  "original reference alignment before masking.")
+            return 1
+    else:
+        keep_mask = mask_gappy_columns(sequences, args.gap_threshold)
+        if args.mask_out:
+            np.save(args.mask_out, keep_mask)
+            print(f"Column mask saved to {args.mask_out}")
+
     export_masked_alignment(sequences, keep_mask, args.output)
 
     print("\n✓ Masking complete")

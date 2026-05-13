@@ -25,6 +25,7 @@ PIPELINE_LOG="${LOGS_DIR}/pipeline.log"
 CENTROID_FASTA="${RESULTS_DIR}/centroids_97_bacteria.fasta"
 ALIGNED_FASTA="${RESULTS_DIR}/centroids_aligned.fasta"
 MASKED_FASTA="${RESULTS_DIR}/centroids_masked.fasta"
+COLUMN_MASK="${RESULTS_DIR}/centroids_column_mask.npy"
 TAXONOMY_TSV="${RESULTS_DIR}/centroids_taxonomy.tsv"
 
 echo "==========================================="
@@ -100,7 +101,8 @@ source "${VENV_DIR}/bin/activate"
 python3 "${SCRIPT_DIR}/scripts/mask_alignment.py" \
     "$ALIGNED_FASTA" \
     "$MASKED_FASTA" \
-    --gap-threshold 99.56
+    --gap-threshold 99.56 \
+    --mask-out "$COLUMN_MASK"
 
 MASKED_COUNT=$(grep -c "^>" "$MASKED_FASTA")
 MASKED_WIDTH=$(grep -v "^>" "$MASKED_FASTA" | head -1 | wc -c)
