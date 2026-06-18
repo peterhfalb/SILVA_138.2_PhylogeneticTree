@@ -4,7 +4,14 @@ Builds a full-resolution bacterial reference phylogenetic tree from SILVA NR99 1
 
 ## Overview
 
-The pipeline runs as five modular SLURM jobs on Agate (UMN HPC):
+This pipeline builds a SILVA-derived bacterial reference tree following the general approach Ben Kaehler used to construct the SILVA reference tree shipped with QIIME2's `q2-clawback`/`q2-fragment-insertion` workflows ([gist](https://gist.github.com/BenKaehler/d9291d59bce5cd3d2a90c73b822b3a21)): start from unaligned NR99 sequences, cluster to remove near-duplicates, align to a domain-specific covariance model with Infernal, mask alignment columns that are mostly gaps, and build a tree from the resulting alignment. The QIIME2 reference tree was intended for fragment-insertion placement of short amplicon reads — the same end goal as this pipeline.
+
+This implementation differs from Kaehler's in a few ways driven by scale and tooling available on Agate (UMN HPC):
+- Restricted to **bacteria only** (167,957 sequences after clustering and filtering), rather than all three domains, since RF00177.cm is a bacteria-specific SSU rRNA covariance model
+- Tree built with **FastTree2** (GTR+gamma, `-fastest`) rather than a maximum-likelihood search tool — IQ-TREE was tried first but is computationally infeasible at this scale (see Step 4 below)
+- Placement performed with **pplacer-BSCAMPP** (Wedell, Cai & Warnow 2023) instead of plain pplacer or EPA-ng, since the unpruned 167,957-tip backbone tree exceeds what those tools can place into directly (they fail above ~78,000 tips) — BSCAMPP scales to 200,000 leaves and lets us skip tree pruning entirely
+
+The pipeline runs as five modular SLURM jobs on Agate:
 
 1. **Download** the unaligned SILVA NR99 138.2 FASTA (~510K sequences)
 2. **Cluster** at 97% identity (VSEARCH), then filter to bacteria only — yields 167,957 centroids
@@ -233,3 +240,4 @@ python3     Steps 3, 5, setup, and placement
 - **FastTree2:** Price, Dehal & Arkin (2010). PLoS ONE 5(3):e9490
 - **pplacer-BSCAMPP:** Wedell, Cai & Warnow (2023). IEEE/ACM TCBB 20(2):1417–1430
 - **RF00177:** Rfam database — bacteria SSU rRNA covariance model
+- **Ben Kaehler's SILVA tree build (basis for this pipeline's approach):** https://gist.github.com/BenKaehler/d9291d59bce5cd3d2a90c73b822b3a21

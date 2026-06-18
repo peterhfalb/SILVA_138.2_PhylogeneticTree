@@ -43,6 +43,9 @@ __pycache__/
 *.swo
 *~
 
+# Claude Code local settings
+settings.local.json
+
 # OS
 .DS_Store
 .AppleDouble
